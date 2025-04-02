@@ -9,6 +9,9 @@
   <body>
     <h1>CopyStroke</h1>
     <button id="downloadBtn">Download Palette .ACO</button>
+    <input type="file" id="loadImageBtn" accept="image/*">
+    <div id="imageContainer"></div>
+    <button id="copyStrokeBtn" style="display: none;">CopyStroke</button>
 
     <script>
       let todayCanvas;
@@ -40,14 +43,93 @@
         generateACO();
       });
 
+
+      function validateImageSize(file) {
+        return new Promise((resolve, reject) => {
+
+          document.getElementById('copyStrokeBtn').style.display = 'none';
+          document.getElementById('imageContainer').innerHTML = '';
+
+          const img = new Image();
+          img.onload = () => {
+            if (img.width === 256 && img.height === 256) {
+              resolve(img);
+            } else {
+              reject(new Error('The image must be 256x256px'));
+            }
+          };
+          img.onerror = () => reject(new Error('Error loading image'));
+          img.src = URL.createObjectURL(file);
+        });
+      }
+
+      document.getElementById('loadImageBtn').addEventListener('change', async (event) => {
+        const file = event.target.files[0];
+        if (file) {
+          try {
+            const img = await validateImageSize(file);
+            document.getElementById('imageContainer').appendChild(img); 
+            document.getElementById('copyStrokeBtn').style.display = 'block';
+          } catch (error) {
+            alert(error.message);
+          }
+        }
+      });
+
+      function processImage(image) {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = image.width;
+        canvas.height = image.height;
+        ctx.drawImage(image, 0, 0);
+
+        const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        const resultado = [];
+
+        for (let y = 0; y < canvas.height; y++) {
+          for (let x = 0; x < canvas.width; x++) {
+            const index = (y * canvas.width + x) * 4;
+            const color = getColorIndex(data[index], data[index + 1], data[index + 2]);
+            if (color !== -1) {
+              resultado.push({"point": {"x": x, "y": y}, "color": color});
+            }
+          }
+        }
+
+        return JSON.stringify(resultado);
+      }
+
+      function getColorIndex(r, g, b) {
+        const toHex = (c) => {
+          const hex = c.toString(16);
+          return hex.length === 1 ? '0' + hex : hex;
+        };
+        const color = `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+        return todayCanvas.palette.findIndex(p => p === color);
+      }
+
+      function copyToClipboard(texto) {
+        navigator.clipboard.writeText(texto).then(() => {
+          console.log('Text copied to clipboard');
+        });
+      }
+
+      document.getElementById('copyStrokeBtn').addEventListener('click', async () => {
+        await fetchPalette();
+        
+        const image = document.getElementById('imageContainer').children[0];
+        const arrayPixels = processImage(image);
+        copyToClipboard(arrayPixels);
+      });
+
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('service-worker.js')
             .then(registration => {
-              console.log('Service Worker registrado con éxito:', registration);
+              console.log('Service Worker successfully registered:', registration);
             })
             .catch(error => {
-              console.log('Error al registrar el Service Worker:', error);
+              console.log('Error registering Service Worker:', error);
             });
         });
       }
