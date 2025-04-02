@@ -6,7 +6,39 @@
     <title>CopyStroke</title>
   </head>
   <body>
-    <h1>Hello World</h1>
-    
+    <h1>CopyStroke</h1>
+    <button id="downloadBtn">Download Palette .ACO</button>
+
+    <script>
+      let todayCanvas;
+
+      async function fetchPalette() {
+        const response = await fetch('https://basepaint.xyz/api/theme/602');
+        todayCanvas = await response.json();
+      }
+
+      function generateACO() {
+        const header = "ACF";
+        const colorData = todayCanvas.palette.map(color => {
+          return `${color}\n`;
+        }).join('');
+        const acoContent = `${header}\n${todayCanvas.theme}\n${colorData}`;
+        const blob = new Blob([acoContent], { type: 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${todayCanvas.theme}.aco`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+
+      document.getElementById('downloadBtn').addEventListener('click', async () => {
+        await fetchPalette();
+        generateACO();
+      });
+
+    </script>
   </body>
 </html>
