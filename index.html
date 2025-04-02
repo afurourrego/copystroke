@@ -30,7 +30,7 @@
       }
 
       function getDay() {
-        let startDate = new Date("2023-08-08 16:41:05 Z");
+        let startDate = Date.parse("2023-08-08T16:41:05Z");
         let today = new Date();
         let diffInMs = today - startDate;
         let diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
