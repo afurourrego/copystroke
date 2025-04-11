@@ -11,7 +11,7 @@
     <h1>copystroke</h1>
     <h3 id="basepaintTheme">Loading...</h3>
     <div id="contentLoaded" style="display: none;">
-      <button id="downloadBtn">Download Today Palette .ACO</button>
+      <button id="downloadBtn">Download Today Palette .png</button>
       <input type="file" id="loadImageBtn" accept="image/*">
       <div id="imageContainer"></div>
       <button id="copyStrokeBtn" style="display: none;">Copy Stroke</button>
@@ -53,27 +53,45 @@
         }
       }
 
-      function generateACO() {
-        const header = "ACF";
-        const colorData = todayCanvas.palette.map(color => {
-          return `${color}\n`;
-        }).join('');
-        const acoContent = `${header}\n${dayCanvas} - ${todayCanvas.theme}\n${colorData}`;
-        const blob = new Blob([acoContent], { type: 'application/octet-stream' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${dayCanvas} - ${todayCanvas.theme}.aco`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+      function generatePaletteImage() {
+        if (!todayCanvas || !todayCanvas.palette) {
+          console.error("No palette data available.");
+          return;
+        }
+
+        const colors = todayCanvas.palette;
+        const squareSize = 50; // Tamaño de cada cuadro
+        const canvasWidth = colors.length * squareSize;
+        const canvasHeight = squareSize;
+
+        // Crear un canvas para dibujar la paleta
+        const canvas = document.createElement('canvas');
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
+        const ctx = canvas.getContext('2d');
+
+        // Dibujar cada color como un cuadro
+        colors.forEach((color, index) => {
+          ctx.fillStyle = color;
+          ctx.fillRect(index * squareSize, 0, squareSize, squareSize);
+        });
+
+        // Convertir el canvas a una imagen PNG y descargarla
+        canvas.toBlob((blob) => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${dayCanvas} - ${todayCanvas.theme}.png`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 'image/png');
       }
 
       document.getElementById('downloadBtn').addEventListener('click', async () => {
-        generateACO();
+        generatePaletteImage();
       });
-
 
       function validateImageSize(file) {
         return new Promise((resolve, reject) => {
