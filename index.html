@@ -105,6 +105,35 @@
         box-shadow: 0px 5px black, 0px -5px black, 5px 0px black, -5px 0px black,inset 0px 5px #00000038;
       }
 
+      #downloadCanvasBtn {
+        color: #fff;
+        background-color: #073eb1;
+        padding: 10px 15px;
+        margin: 15px 0;
+        width: 256px;
+        font-size: 16px;
+        border: 0;
+        box-shadow: 0px 5px black, 0px -5px black, 5px 0px black, -5px 0px black, 0px 10px #00000038, 5px 5px #00000038, -5px 5px #00000038, inset 0px 5px #ffffff36;
+        cursor: pointer;
+      }
+
+      #reverseStrokeBtn {
+        color: #fff;
+        background-color: #b13007;
+        padding: 10px 15px;
+        margin: 15px 0;
+        width: 256px;
+        font-size: 16px;
+        border: 0;
+        box-shadow: 0px 5px black, 0px -5px black, 5px 0px black, -5px 0px black, 0px 10px #00000038, 5px 5px #00000038, -5px 5px #00000038, inset 0px 5px #ffffff36;
+        cursor: pointer;
+      }
+
+      #reverseStrokeBtn:active {
+        transform: translateY(5px);
+        box-shadow: 0px 5px black, 0px -5px black, 5px 0px black, -5px 0px black,inset 0px 5px #00000038;
+      }
+
     </style>
   </head>
   <body>
@@ -113,6 +142,7 @@
       <h3 id="basepaintTheme">Loading...</h3>
 
       <button id="downloadBtn">Download Today Palette .png</button>
+      <button id="downloadCanvasBtn">Download Canvas Progress</button>
 
       <div>
         <label for="loadImageBtn" class="custom-file-label">Load Image</label>
@@ -122,6 +152,7 @@
       <div id="imageContainer"></div>
 
       <button id="copyStrokeBtn" disabled>Copy Stroke</button>
+      <button id="reverseStrokeBtn">Reverse Stroke</button>
     </div>
 
     <script>
@@ -182,7 +213,7 @@
           ctx.fillStyle = color;
           ctx.fillRect(index * squareSize, 0, squareSize, squareSize);
         });
-
+ 
         // Convertir el canvas a una imagen PNG y descargarla
         canvas.toBlob((blob) => {
           const url = URL.createObjectURL(blob);
@@ -198,6 +229,28 @@
 
       document.getElementById('downloadBtn').addEventListener('click', async () => {
         generatePaletteImage();
+      });
+
+      document.getElementById('downloadCanvasBtn').addEventListener('click', async () => {
+        try {
+          const dayCanvas = getDay(); // Obtener el día actual
+          const imageUrl = `https://api.allorigins.win/get?url=${encodeURIComponent('https://basepaint.xyz/api/art/image?day=' + dayCanvas + '&scale=1')}`;
+
+          // Descargar la imagen desde la URL
+          const response = await fetch(imageUrl);
+          if (!response.ok) throw new Error(`Error fetching image: ${response.statusText}`);
+          const blob = await response.blob();
+
+          // Crear un enlace para descargar la imagen
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = `art-image-day-${dayCanvas}.png`; // Nombre del archivo descargado
+          a.click();
+          URL.revokeObjectURL(a.href); // Liberar memoria
+        } catch (error) {
+          console.error('Error downloading the image:', error);
+          alert('Failed to download the image. Please try again.');
+        }
       });
 
       function validateImageSize(file) {
@@ -233,10 +286,6 @@
           }
         }
       });
-
-      // document.querySelector('.custom-file-label').addEventListener('click', () => {
-      //   document.getElementById('loadImageBtn').click();
-      // });
 
       function processImage(image) {
         const canvas = document.createElement('canvas');
@@ -291,6 +340,80 @@
         const arrayPixels = processImage(image);
         copyToClipboard(arrayPixels);
       });
+
+      async function reverseStroke() {
+        try {
+          // Leer el contenido del portapapeles
+          const clipboardText = await navigator.clipboard.readText();
+          
+          if (!clipboardText) {
+            alert('No hay contenido en el portapapeles');
+            return;
+          }
+
+          // Parsear el JSON del portapapeles
+          let pixelData;
+          try {
+            pixelData = JSON.parse(clipboardText);
+          } catch (error) {
+            alert('El contenido del portapapeles no es un JSON válido');
+            return;
+          }
+
+          if (!Array.isArray(pixelData)) {
+            alert('El formato de datos no es válido');
+            return;
+          }
+
+          // Verificar que tenemos la paleta de colores
+          if (!todayCanvas || !todayCanvas.palette) {
+            alert('No se ha cargado la paleta de colores');
+            return;
+          }
+
+          // Crear canvas de 256x256
+          const canvas = document.createElement('canvas');
+          canvas.width = 256;
+          canvas.height = 256;
+          const ctx = canvas.getContext('2d');
+
+          // Llenar con fondo transparente
+          ctx.clearRect(0, 0, 256, 256);
+
+          // Dibujar cada pixel según los datos
+          pixelData.forEach(pixel => {
+            if (pixel.point && typeof pixel.color === 'number') {
+              const x = pixel.point.x;
+              const y = pixel.point.y;
+              const colorIndex = pixel.color;
+
+              // Verificar que las coordenadas estén dentro del rango
+              if (x >= 0 && x < 256 && y >= 0 && y < 256 && colorIndex >= 0 && colorIndex < todayCanvas.palette.length) {
+                ctx.fillStyle = todayCanvas.palette[colorIndex];
+                ctx.fillRect(x, y, 1, 1);
+              }
+            }
+          });
+
+          // Convertir a blob y descargar
+          canvas.toBlob((blob) => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `reverse-stroke-${dayCanvas}-${todayCanvas.theme}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }, 'image/png');
+
+        } catch (error) {
+          console.error('Error en reverse stroke:', error);
+          alert('Error al procesar el reverse stroke: ' + error.message);
+        }
+      }
+
+      document.getElementById('reverseStrokeBtn').addEventListener('click', reverseStroke);
 
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
