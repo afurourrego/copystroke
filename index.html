@@ -234,7 +234,7 @@
       document.getElementById('downloadCanvasBtn').addEventListener('click', async () => {
         try {
           const dayCanvas = getDay(); // Obtener el día actual
-          const imageUrl = `https://api.allorigins.win/get?url=${encodeURIComponent('https://basepaint.xyz/api/art/image?day=' + dayCanvas + '&scale=1')}`;
+          const imageUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent('https://basepaint.xyz/api/art/image?day=' + dayCanvas + '&scale=1')}`;
 
           // Descargar la imagen desde la URL
           const response = await fetch(imageUrl);
