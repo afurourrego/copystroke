@@ -48,7 +48,6 @@
 
       button {
         color: #fff;
-        background-color: #6abc3a;
         padding: 10px 15px;
         margin: 15px 0;
         width: 256px;
@@ -57,7 +56,8 @@
         box-shadow: 0px 5px black, 0px -5px black, 5px 0px black, -5px 0px black, 0px 10px #00000038, 5px 5px #00000038, -5px 5px #00000038, inset 0px 5px #ffffff36 ;
         cursor: pointer;
       }
-      button:active {
+      
+      button:active:not(:disabled) {
         transform: translateY(5px);
         box-shadow: 0px 5px black, 0px -5px black, 5px 0px black, -5px 0px black,inset 0px 5px #00000038;
       }
@@ -65,9 +65,17 @@
       button:disabled {
         transform: none;
         box-shadow: 0px 5px black, 0px -5px black, 5px 0px black, -5px 0px black, 0px 10px #00000038, 5px 5px #00000038, -5px 5px #00000038, inset 0px 5px #ffffff36 ;
-        background-color: #cccccc;
-        color: #666666;
+        background-color: #cccccc !important;
+        color: #666666 !important;
         cursor: not-allowed;
+      }
+
+      #downloadBtn {
+        background-color: #6abc3a;
+      }
+
+      #copyStrokeBtn {
+        background-color: #6abc3a;
       }
 
       input[type="file"] {
@@ -106,32 +114,15 @@
       }
 
       #downloadCanvasBtn {
-        color: #fff;
         background-color: #073eb1;
-        padding: 10px 15px;
-        margin: 15px 0;
-        width: 256px;
-        font-size: 16px;
-        border: 0;
-        box-shadow: 0px 5px black, 0px -5px black, 5px 0px black, -5px 0px black, 0px 10px #00000038, 5px 5px #00000038, -5px 5px #00000038, inset 0px 5px #ffffff36;
-        cursor: pointer;
       }
 
       #reverseStrokeBtn {
-        color: #fff;
         background-color: #b13007;
-        padding: 10px 15px;
-        margin: 15px 0;
-        width: 256px;
-        font-size: 16px;
-        border: 0;
-        box-shadow: 0px 5px black, 0px -5px black, 5px 0px black, -5px 0px black, 0px 10px #00000038, 5px 5px #00000038, -5px 5px #00000038, inset 0px 5px #ffffff36;
-        cursor: pointer;
       }
 
-      #reverseStrokeBtn:active {
-        transform: translateY(5px);
-        box-shadow: 0px 5px black, 0px -5px black, 5px 0px black, -5px 0px black,inset 0px 5px #00000038;
+      #copyWithoutOverprintingBtn {
+        background-color: #8a2be2;
       }
 
     </style>
@@ -152,6 +143,7 @@
       <div id="imageContainer"></div>
 
       <button id="copyStrokeBtn" disabled>Copy Stroke</button>
+      <button id="copyWithoutOverprintingBtn" disabled>Copy Without Overprinting</button>
       <button id="reverseStrokeBtn">Reverse Stroke</button>
     </div>
 
@@ -191,6 +183,85 @@
         }
       }
 
+      // Nueva función para obtener y procesar el canvas actual - SIEMPRE descarga fresco
+      async function fetchCurrentCanvas() {
+        try {
+          console.log('Fetching fresh canvas data...');
+          const dayCanvas = getDay();
+          // Agregar timestamp para evitar caché del navegador
+          const timestamp = new Date().getTime();
+          const imageUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent('https://basepaint.xyz/api/art/image?day=' + dayCanvas + '&scale=1&t=' + timestamp)}`;
+          
+          const response = await fetch(imageUrl, { cache: 'no-store' });
+          if (!response.ok) throw new Error(`Error fetching current canvas: ${response.statusText}`);
+          
+          const blob = await response.blob();
+          
+          // Convertir blob a imagen
+          return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => {
+              // Verificar que la imagen sea 256x256
+              console.log(`Current canvas size: ${img.width}x${img.height}`);
+              
+              // Procesar la imagen para obtener los píxeles
+              const pixels = processImageToMap(img);
+              console.log(`Current canvas has ${pixels.size} pixels`);
+              
+              resolve(pixels);
+            };
+            img.onerror = () => reject(new Error('Error loading current canvas image'));
+            img.src = URL.createObjectURL(blob);
+          });
+        } catch (error) {
+          console.error('Error fetching current canvas:', error);
+          return null;
+        }
+      }
+
+      // Nueva función que procesa una imagen y devuelve un Map con key "x,y" -> colorIndex
+      function processImageToMap(image) {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Asegurarse de que el canvas sea siempre 256x256
+        canvas.width = 256;
+        canvas.height = 256;
+        
+        // Si la imagen no es 256x256, escalarla
+        if (image.width !== 256 || image.height !== 256) {
+          ctx.imageSmoothingEnabled = false; // Desactivar suavizado para pixel art
+          ctx.drawImage(image, 0, 0, 256, 256);
+        } else {
+          ctx.drawImage(image, 0, 0);
+        }
+
+        const data = ctx.getImageData(0, 0, 256, 256).data;
+        const pixelMap = new Map();
+
+        for (let y = 0; y < 256; y++) {
+          for (let x = 0; x < 256; x++) {
+            const index = (y * 256 + x) * 4;
+            const r = data[index];
+            const g = data[index + 1];
+            const b = data[index + 2];
+            const a = data[index + 3];
+
+            // Ignorar píxeles transparentes o muy transparentes
+            if (a < 128) {
+              continue;
+            }
+
+            const color = getColorIndex(r, g, b);
+            if (color !== -1) {
+              pixelMap.set(`${x},${y}`, color);
+            }
+          }
+        }
+
+        return pixelMap;
+      }
+
       function generatePaletteImage() {
         if (!todayCanvas || !todayCanvas.palette) {
           console.error("No palette data available.");
@@ -198,23 +269,20 @@
         }
 
         const colors = todayCanvas.palette;
-        const squareSize = 50; // Tamaño de cada cuadro
+        const squareSize = 50;
         const canvasWidth = colors.length * squareSize;
         const canvasHeight = squareSize;
 
-        // Crear un canvas para dibujar la paleta
         const canvas = document.createElement('canvas');
         canvas.width = canvasWidth;
         canvas.height = canvasHeight;
         const ctx = canvas.getContext('2d');
 
-        // Dibujar cada color como un cuadro
         colors.forEach((color, index) => {
           ctx.fillStyle = color;
           ctx.fillRect(index * squareSize, 0, squareSize, squareSize);
         });
  
-        // Convertir el canvas a una imagen PNG y descargarla
         canvas.toBlob((blob) => {
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
@@ -233,20 +301,18 @@
 
       document.getElementById('downloadCanvasBtn').addEventListener('click', async () => {
         try {
-          const dayCanvas = getDay(); // Obtener el día actual
+          const dayCanvas = getDay();
           const imageUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent('https://basepaint.xyz/api/art/image?day=' + dayCanvas + '&scale=1')}`;
 
-          // Descargar la imagen desde la URL
           const response = await fetch(imageUrl);
           if (!response.ok) throw new Error(`Error fetching image: ${response.statusText}`);
           const blob = await response.blob();
 
-          // Crear un enlace para descargar la imagen
           const a = document.createElement('a');
           a.href = URL.createObjectURL(blob);
-          a.download = `art-image-day-${dayCanvas}.png`; // Nombre del archivo descargado
+          a.download = `art-image-day-${dayCanvas}.png`;
           a.click();
-          URL.revokeObjectURL(a.href); // Liberar memoria
+          URL.revokeObjectURL(a.href);
         } catch (error) {
           console.error('Error downloading the image:', error);
           alert('Failed to download the image. Please try again.');
@@ -257,6 +323,7 @@
         return new Promise((resolve, reject) => {
 
           document.getElementById('copyStrokeBtn').disabled = true;
+          document.getElementById('copyWithoutOverprintingBtn').disabled = true;
           document.getElementById('imageContainer').innerHTML = '';
 
           const img = new Image();
@@ -281,12 +348,14 @@
             imageContainer.innerHTML = '';
             imageContainer.appendChild(img);
             document.getElementById('copyStrokeBtn').disabled = false;
+            document.getElementById('copyWithoutOverprintingBtn').disabled = false;
           } catch (error) {
             alert(error.message);
           }
         }
       });
 
+      // Función original que copia todos los píxeles
       function processImage(image) {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
@@ -303,9 +372,8 @@
             const r = data[index];
             const g = data[index + 1];
             const b = data[index + 2];
-            const a = data[index + 3]; // Canal alfa
+            const a = data[index + 3];
 
-            // Ignorar píxeles transparentes
             if (a === 0) {
               continue;
             }
@@ -320,13 +388,71 @@
         return JSON.stringify(resultado);
       }
 
+      // Nueva función que procesa la imagen y filtra píxeles duplicados
+      async function processImageWithFilter(image) {
+        // SIEMPRE descargar el canvas actual fresco cada vez
+        console.log('Downloading fresh current canvas for comparison...');
+        const currentCanvasPixels = await fetchCurrentCanvas();
+        
+        if (!currentCanvasPixels) {
+          console.error('Failed to fetch current canvas, proceeding without filtering');
+          // Si falla, usar el método normal
+          return processImage(image);
+        }
+
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = image.width;
+        canvas.height = image.height;
+        ctx.drawImage(image, 0, 0);
+
+        const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        const resultado = [];
+        let totalPixels = 0;
+        let filteredPixels = 0;
+
+        for (let y = 0; y < canvas.height; y++) {
+          for (let x = 0; x < canvas.width; x++) {
+            const index = (y * canvas.width + x) * 4;
+            const r = data[index];
+            const g = data[index + 1];
+            const b = data[index + 2];
+            const a = data[index + 3];
+
+            if (a === 0) {
+              continue;
+            }
+
+            const color = getColorIndex(r, g, b);
+            if (color !== -1) {
+              totalPixels++;
+              
+              // Verificar si este píxel ya existe en el canvas actual con el mismo color
+              const key = `${x},${y}`;
+              const currentColor = currentCanvasPixels.get(key);
+              
+              // Solo agregar si el color es diferente o el píxel no existe en el canvas actual
+              if (currentColor === undefined || currentColor !== color) {
+                resultado.push({ "point": { "x": x, "y": y }, "color": color });
+              } else {
+                filteredPixels++;
+              }
+            }
+          }
+        }
+
+        console.log(`Total pixels: ${totalPixels}, Filtered out: ${filteredPixels}, Remaining: ${resultado.length}`);
+        return JSON.stringify(resultado);
+      }
+
       function getColorIndex(r, g, b) {
         const toHex = (c) => {
           const hex = c.toString(16);
           return hex.length === 1 ? '0' + hex : hex;
         };
-        const color = `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-        return todayCanvas.palette.findIndex(p => p === color);
+        const color = `#${toHex(r)}${toHex(g)}${toHex(b)}`.toLowerCase();
+        const index = todayCanvas.palette.findIndex(p => p.toLowerCase() === color);
+        return index;
       }
 
       function copyToClipboard(texto) {
@@ -335,15 +461,42 @@
         });
       }
 
-      document.getElementById('copyStrokeBtn').addEventListener('click', async () => {        
+      // Botón original Copy Stroke
+      document.getElementById('copyStrokeBtn').addEventListener('click', async () => {
         const image = document.getElementById('imageContainer').children[0];
         const arrayPixels = processImage(image);
         copyToClipboard(arrayPixels);
       });
 
+      // Nuevo botón Copy Without Overprinting
+      document.getElementById('copyWithoutOverprintingBtn').addEventListener('click', async () => {
+        const button = document.getElementById('copyWithoutOverprintingBtn');
+        const originalText = button.textContent;
+        
+        try {
+          button.disabled = true;
+          button.textContent = 'Downloading Canvas...';
+          
+          const image = document.getElementById('imageContainer').children[0];
+          const arrayPixels = await processImageWithFilter(image);
+          
+          copyToClipboard(arrayPixels);
+          
+          button.textContent = 'Copied!';
+          setTimeout(() => {
+            button.textContent = originalText;
+            button.disabled = false;
+          }, 2000);
+        } catch (error) {
+          console.error('Error processing image:', error);
+          alert('Error processing image. Please try again.');
+          button.textContent = originalText;
+          button.disabled = false;
+        }
+      });
+
       async function reverseStroke() {
         try {
-          // Leer el contenido del portapapeles
           const clipboardText = await navigator.clipboard.readText();
           
           if (!clipboardText) {
@@ -351,7 +504,6 @@
             return;
           }
 
-          // Parsear el JSON del portapapeles
           let pixelData;
           try {
             pixelData = JSON.parse(clipboardText);
@@ -365,29 +517,24 @@
             return;
           }
 
-          // Verificar que tenemos la paleta de colores
           if (!todayCanvas || !todayCanvas.palette) {
             alert('No se ha cargado la paleta de colores');
             return;
           }
 
-          // Crear canvas de 256x256
           const canvas = document.createElement('canvas');
           canvas.width = 256;
           canvas.height = 256;
           const ctx = canvas.getContext('2d');
 
-          // Llenar con fondo transparente
           ctx.clearRect(0, 0, 256, 256);
 
-          // Dibujar cada pixel según los datos
           pixelData.forEach(pixel => {
             if (pixel.point && typeof pixel.color === 'number') {
               const x = pixel.point.x;
               const y = pixel.point.y;
               const colorIndex = pixel.color;
 
-              // Verificar que las coordenadas estén dentro del rango
               if (x >= 0 && x < 256 && y >= 0 && y < 256 && colorIndex >= 0 && colorIndex < todayCanvas.palette.length) {
                 ctx.fillStyle = todayCanvas.palette[colorIndex];
                 ctx.fillRect(x, y, 1, 1);
@@ -395,7 +542,6 @@
             }
           });
 
-          // Convertir a blob y descargar
           canvas.toBlob((blob) => {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
