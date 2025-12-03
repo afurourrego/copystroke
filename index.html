@@ -235,6 +235,56 @@
         margin-bottom: 0;
       }
 
+      .tabs {
+        display: flex;
+        gap: 10px;
+        margin-top: 30px;
+        margin-bottom: 0;
+        justify-content: flex-start;
+        width: 100%;
+      }
+
+      .tab-button {
+        background-color: #999;
+        color: #fff;
+        padding: 10px 20px;
+        margin: 0;
+        width: auto;
+        font-size: 16px;
+        border: 0;
+        box-shadow: 0px -5px black, 5px 0px black, -5px 0px black, inset 0px 5px #ffffff36;
+        cursor: pointer;
+        position: relative;
+        z-index: 1;
+      }
+
+      .tab-button:active {
+        transform: none !important;
+        box-shadow: 0px -5px black, 5px 0px black, -5px 0px black, inset 0px 5px #00000038 !important;
+      }
+
+      .tab-button.active {
+        background-color: #fff;
+        color: #333;
+        box-shadow: 0px -5px black, 5px 0px black, -5px 0px black, inset 0px 5px #ffffff36;
+        z-index: 10 !important;
+      }
+
+      .tab-content {
+        display: none;
+      }
+
+      .tab-content.active {
+        display: block;
+        border-top: 5px solid black;
+        padding-top: 20px;
+        margin-top: -5px;
+        position: relative;
+        z-index: 5;
+        width: 100%;
+        box-sizing: border-box;
+      }
+
     </style>
   </head>
   <body>
@@ -258,7 +308,13 @@
         <button id="downloadCanvasBtn">Download Canvas Progress</button>
       </div>
 
-      <div class="image-section">
+      <div class="tabs">
+        <button class="tab-button active" data-tab="singleImage">Single Frames</button>
+        <button class="tab-button" data-tab="animation">Animations</button>
+      </div>
+
+      <div id="singleImage" class="tab-content active">
+        <div class="image-section">
         <div class="left-controls">
           <label for="loadImageBtn" class="custom-file-label">Load Image</label>
           <input type="file" id="loadImageBtn" accept="image/*" style="display: none;">
@@ -282,11 +338,39 @@
         <button id="splitCodeBtn" disabled>Split Code</button>
       </div>
 
-      <p style="font-size: 11px; color: #888; margin: 5px 0 15px 0; max-width: 500px;">
-        Note: Split Code is a new feature and may fail. Please verify all files were generated correctly before saving.
-      </p>
+        <p style="font-size: 11px; color: #888; margin: 5px 0 15px 0; max-width: 500px;">
+          Note: Split Code is a new feature and may fail. Please verify all files were generated correctly before saving.
+        </p>
 
-      <button id="reverseStrokeBtn">Reverse Stroke</button>
+        <button id="reverseStrokeBtn">Reverse Stroke</button>
+      </div>
+
+      <div id="animation" class="tab-content">
+        <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 15px; width: 100%;">
+          <div style="margin-top: 20px; display: flex; gap: 35px; width: 100%; align-items: flex-start;">
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              <label for="loadAnimationFramesBtn" class="custom-file-label">Load Multiple Frames</label>
+              <input type="file" id="loadAnimationFramesBtn" accept="image/*" multiple style="display: none;">
+
+              <div id="framesInfo" style="display: none; font-size: 13px; color: #333;">
+                <p style="margin: 0;"><strong>Frames loaded:</strong> <span id="framesCount">0</span></p>
+              </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              <button id="processFramesBtn" disabled style="background-color: #ff1493; margin: 0;">Process Frames</button>
+
+              <div id="framesResult" style="display: none; font-size: 14px; color: #333; font-weight: bold;">
+                <p style="margin: 0;"><strong>Total pixels processed:</strong> <span id="totalPixelsResult">0</span></p>
+              </div>
+            </div>
+          </div>
+
+          <p style="font-size: 11px; color: #888; margin: 5px 0 15px 0; max-width: 500px;">
+            Note: Animation processing frame to code is a new feature and may fail. Please verify all files were generated correctly before saving.
+          </p>
+        </div>
+      </div>
     </div>
 
     <script>
@@ -800,6 +884,169 @@
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
       }
+
+      // Variables globales para los frames de animación
+      let animationFrames = [];
+
+      // Cargar múltiples frames
+      document.getElementById('loadAnimationFramesBtn').addEventListener('change', async (event) => {
+        const files = Array.from(event.target.files);
+
+        if (files.length === 0) {
+          return;
+        }
+
+        try {
+          // Validar que todas las imágenes sean 256x256
+          const validatedFrames = [];
+          for (const file of files) {
+            const img = await validateImageSize(file);
+            validatedFrames.push({ file, img, name: file.name });
+          }
+
+          // Ordenar numéricamente por nombre de archivo (extrae números para ordenar correctamente)
+          validatedFrames.sort((a, b) => {
+            // Extraer números del nombre del archivo
+            const getNumbers = (str) => {
+              const matches = str.match(/\d+/g);
+              return matches ? matches.map(Number) : [];
+            };
+
+            const numsA = getNumbers(a.name);
+            const numsB = getNumbers(b.name);
+
+            // Comparar número por número
+            for (let i = 0; i < Math.max(numsA.length, numsB.length); i++) {
+              const numA = numsA[i] || 0;
+              const numB = numsB[i] || 0;
+              if (numA !== numB) {
+                return numA - numB;
+              }
+            }
+
+            // Si los números son iguales, comparar alfabéticamente
+            return a.name.localeCompare(b.name);
+          });
+
+          animationFrames = validatedFrames;
+
+          document.getElementById('framesCount').textContent = animationFrames.length;
+          document.getElementById('framesInfo').style.display = 'block';
+          document.getElementById('processFramesBtn').disabled = false;
+
+          console.log(`Loaded ${animationFrames.length} frames in alphabetical order`);
+        } catch (error) {
+          alert(error.message);
+          animationFrames = [];
+          document.getElementById('framesInfo').style.display = 'none';
+          document.getElementById('processFramesBtn').disabled = true;
+        }
+      });
+
+      // Procesar frames de animación
+      document.getElementById('processFramesBtn').addEventListener('click', async () => {
+        if (animationFrames.length === 0) {
+          alert('No frames loaded');
+          return;
+        }
+
+        const button = document.getElementById('processFramesBtn');
+        const originalText = button.textContent;
+
+        try {
+          button.disabled = true;
+          button.textContent = 'Processing...';
+
+          // Obtener el canvas actual como punto de partida
+          button.textContent = 'Fetching current canvas...';
+          const currentCanvasPixels = await fetchCurrentCanvas();
+
+          if (!currentCanvasPixels) {
+            alert('Failed to fetch current canvas. Please try again.');
+            throw new Error('Failed to fetch current canvas');
+          }
+
+          // Crear un Map temporal que se irá acumulando
+          let temporalCanvasMap = new Map(currentCanvasPixels);
+
+          // Contador total de píxeles
+          let totalPixelsProcessed = 0;
+
+          // Procesar cada frame
+          for (let i = 0; i < animationFrames.length; i++) {
+            const frame = animationFrames[i];
+            button.textContent = `Processing frame ${i + 1}/${animationFrames.length}...`;
+
+            // Obtener píxeles del frame actual
+            const framePixelsMap = processImageToMap(frame.img);
+
+            // Array para el resultado final de este frame
+            const frameResult = [];
+
+            // Comparar cada píxel del frame con el canvas temporal
+            framePixelsMap.forEach((color, key) => {
+              const [x, y] = key.split(',').map(Number);
+              const temporalColor = temporalCanvasMap.get(key);
+
+              // Solo agregar si el color es diferente o el píxel no existe
+              if (temporalColor === undefined || temporalColor !== color) {
+                frameResult.push({ "point": { "x": x, "y": y }, "color": color });
+
+                // Actualizar el canvas temporal con el nuevo color
+                temporalCanvasMap.set(key, color);
+              }
+            });
+
+            // Sumar píxeles de este frame
+            totalPixelsProcessed += frameResult.length;
+
+            // Generar archivo .txt para este frame
+            const frameNumber = String(i + 1).padStart(3, '0');
+            const filename = `frame-${frameNumber}-${frame.name.replace(/\.[^/.]+$/, '')}.txt`;
+            const content = JSON.stringify(frameResult);
+
+            // Descargar con un pequeño delay
+            setTimeout(() => {
+              downloadTextFile(content, filename);
+            }, i * 150);
+
+            console.log(`Frame ${i + 1}: ${frameResult.length} new pixels (${framePixelsMap.size} total in frame)`);
+          }
+
+          console.log(`TOTAL PIXELS PROCESSED: ${totalPixelsProcessed}`);
+
+          // Mostrar resultado en pantalla
+          document.getElementById('totalPixelsResult').textContent = totalPixelsProcessed;
+          document.getElementById('framesResult').style.display = 'block';
+
+          button.textContent = `Done! ${animationFrames.length} frames processed`;
+          setTimeout(() => {
+            button.textContent = originalText;
+            button.disabled = false;
+          }, 3000);
+
+        } catch (error) {
+          console.error('Error processing frames:', error);
+          alert('Error processing frames. Please try again.');
+          button.textContent = originalText;
+          button.disabled = false;
+        }
+      });
+
+      // Sistema de tabs
+      document.querySelectorAll('.tab-button').forEach(button => {
+        button.addEventListener('click', () => {
+          const targetTab = button.getAttribute('data-tab');
+
+          // Remover active de todos los botones y contenidos
+          document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+          document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+          // Activar el tab seleccionado
+          button.classList.add('active');
+          document.getElementById(targetTab).classList.add('active');
+        });
+      });
 
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
