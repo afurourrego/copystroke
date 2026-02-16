@@ -377,6 +377,16 @@
       let dayCanvas;
       let todayCanvas;
 
+      // Función para construir URL con proxy (siempre usa corsproxy.io)
+      function buildApiUrl(baseUrl) {
+        console.log('Using corsproxy.io for CORS bypass');
+        return `https://corsproxy.io/?url=${encodeURIComponent(baseUrl)}`;
+      }
+
+      function buildApiUrlWithJson(baseUrl) {
+        return `https://corsproxy.io/?url=${encodeURIComponent(baseUrl)}`;
+      }
+
       setTitle();
 
       async function setTitle() {
@@ -398,11 +408,12 @@
       async function fetchPalette() {
         try {
           dayCanvas = getDay();
-          const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent('https://basepaint.xyz/api/theme/' + dayCanvas)}`);
-          if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+          const baseUrl = `https://basepaint.xyz/api/theme/${dayCanvas}`;
 
-          const data = await response.json();
-          todayCanvas = JSON.parse(data.contents);
+          const proxyUrl = buildApiUrlWithJson(baseUrl);
+          const response = await fetch(proxyUrl);
+          if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+          todayCanvas = await response.json();
 
           console.log(todayCanvas);
         } catch (error) {
@@ -417,11 +428,12 @@
           const dayCanvas = getDay();
           // Agregar timestamp para evitar caché del navegador
           const timestamp = new Date().getTime();
-          const imageUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent('https://basepaint.xyz/api/art/image?day=' + dayCanvas + '&scale=1&t=' + timestamp)}`;
-          
+          const baseUrl = `https://basepaint.xyz/api/art/image?day=${dayCanvas}&scale=1&t=${timestamp}`;
+          const imageUrl = buildApiUrl(baseUrl);
+
           const response = await fetch(imageUrl, { cache: 'no-store' });
           if (!response.ok) throw new Error(`Error fetching current canvas: ${response.statusText}`);
-          
+
           const blob = await response.blob();
           
           // Convertir blob a imagen
@@ -529,7 +541,8 @@
       document.getElementById('downloadCanvasBtn').addEventListener('click', async () => {
         try {
           const dayCanvas = getDay();
-          const imageUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent('https://basepaint.xyz/api/art/image?day=' + dayCanvas + '&scale=1')}`;
+          const baseUrl = `https://basepaint.xyz/api/art/image?day=${dayCanvas}&scale=1`;
+          const imageUrl = buildApiUrl(baseUrl);
 
           const response = await fetch(imageUrl);
           if (!response.ok) throw new Error(`Error fetching image: ${response.statusText}`);
