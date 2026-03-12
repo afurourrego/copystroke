@@ -408,10 +408,9 @@
       async function fetchPalette() {
         try {
           dayCanvas = getDay();
-          const timestamp = Date.now();
-          const baseUrl = `https://basepaint.xyz/api/theme/${dayCanvas}?t=${timestamp}`;
+          const baseUrl = `https://basepaint.xyz/api/theme/${dayCanvas}`;
 
-          const proxyUrl = buildApiUrlWithJson(baseUrl);
+          const proxyUrl = `${buildApiUrlWithJson(baseUrl)}&t=${Date.now()}`;
           const response = await fetch(proxyUrl, { cache: 'no-store' });
           if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
           todayCanvas = await response.json();
