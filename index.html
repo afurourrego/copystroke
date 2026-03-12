@@ -377,14 +377,8 @@
       let dayCanvas;
       let todayCanvas;
 
-      // Función para construir URL con proxy (siempre usa corsproxy.io)
-      function buildApiUrl(baseUrl) {
-        console.log('Using corsproxy.io for CORS bypass');
-        return `https://corsproxy.io/?url=${encodeURIComponent(baseUrl)}`;
-      }
-
-      function buildApiUrlWithJson(baseUrl) {
-        return `https://corsproxy.io/?url=${encodeURIComponent(baseUrl)}`;
+      function buildApiUrl(day, scale = 1) {
+        return `/api/canvas?day=${day}&scale=${scale}`;
       }
 
       setTitle();
@@ -408,10 +402,7 @@
       async function fetchPalette() {
         try {
           dayCanvas = getDay();
-          const baseUrl = `https://basepaint.xyz/api/theme/${dayCanvas}`;
-
-          const proxyUrl = buildApiUrlWithJson(baseUrl);
-          const response = await fetch(proxyUrl, { cache: 'no-store' });
+          const response = await fetch(`/api/theme?day=${dayCanvas}`);
           if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
           todayCanvas = await response.json();
 
@@ -426,12 +417,9 @@
         try {
           console.log('Fetching fresh canvas data...');
           const dayCanvas = getDay();
-          // Agregar timestamp para evitar caché del navegador
-          const timestamp = new Date().getTime();
-          const baseUrl = `https://basepaint.xyz/api/art/image?day=${dayCanvas}&scale=1&t=${timestamp}`;
-          const imageUrl = buildApiUrl(baseUrl);
+          const imageUrl = buildApiUrl(dayCanvas);
 
-          const response = await fetch(imageUrl, { cache: 'no-store' });
+          const response = await fetch(imageUrl);
           if (!response.ok) throw new Error(`Error fetching current canvas: ${response.statusText}`);
 
           const blob = await response.blob();
@@ -541,8 +529,7 @@
       document.getElementById('downloadCanvasBtn').addEventListener('click', async () => {
         try {
           const dayCanvas = getDay();
-          const baseUrl = `https://basepaint.xyz/api/art/image?day=${dayCanvas}&scale=1`;
-          const imageUrl = buildApiUrl(baseUrl);
+          const imageUrl = buildApiUrl(dayCanvas);
 
           const response = await fetch(imageUrl);
           if (!response.ok) throw new Error(`Error fetching image: ${response.statusText}`);
