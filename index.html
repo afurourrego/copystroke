@@ -410,8 +410,11 @@
           dayCanvas = getDay();
           const baseUrl = `https://basepaint.xyz/api/theme/${dayCanvas}`;
 
-          const proxyUrl = `${buildApiUrlWithJson(baseUrl)}&t=${Date.now()}`;
-          const response = await fetch(proxyUrl, { cache: 'no-store' });
+          const proxyUrl = buildApiUrlWithJson(baseUrl);
+          const response = await fetch(proxyUrl, {
+            cache: 'no-store',
+            headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+          });
           if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
           todayCanvas = await response.json();
 
